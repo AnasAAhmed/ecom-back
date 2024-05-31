@@ -170,7 +170,7 @@ export const updateProduct = TryCatch(async (req, res, next) => {
 
   if (!product) return next(new ErrorHandler("Product Not Found", 404));
 
-  if (photos && photos.length > 0) {
+  if (photos&& photos.length>0) {
     // Remove old photos
     product.photos.forEach(photo => {
       rm(photo, () => {
@@ -186,9 +186,9 @@ export const updateProduct = TryCatch(async (req, res, next) => {
   if (price) product.price = price;
   if (description) product.description = description;
   if (cutPrice) product.cutPrice = cutPrice;
+  if (collections) product.collections = collections;
   if (stock) product.stock = stock;
   if (category) product.category = category.toLowerCase();
-  if (collections) product.collections = collections.toLowerCase();
   if (size) product.size = size;
   if (color) product.color = color;
 
