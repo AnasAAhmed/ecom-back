@@ -22,7 +22,7 @@ export const getlatestProducts = TryCatch(async (req, res, next) => {
     products = await Product.find({})
       .sort({ createdAt: -1 })
       .limit(4)
-      .select('-description -category -collections -reviews -createdAt -updatedAt -__v'); // Exclude unwanted fields
+      .select('-description -sizes -colors -category -collections -reviews -createdAt -updatedAt -__v'); // Exclude unwanted fields
     myCache.set("latest-products", JSON.stringify(products));
   }
 
@@ -39,7 +39,7 @@ export const getLatestCategoryProducts = TryCatch(async (req, res, next) => {
   const products = await Product.find({ category: category })
     .sort({ createdAt: -1 })
     .limit(4)
-    .select('-description -category -collections -reviews -createdAt -updatedAt -__v'); // Exclude unwanted fields
+    .select('-description -sizes -colors -category -collections -reviews -createdAt -updatedAt -__v'); // Exclude unwanted fields
 
   return res.status(200).json({
     success: true,
@@ -256,7 +256,7 @@ export const getAllProducts = TryCatch(
       .sort(sort ? { price: sort === "asc" ? 1 : -1 } : { createdAt: -1 })
       .limit(limit)
       .skip(skip)
-      .select('-description -category -collections -reviews -createdAt -updatedAt -__v'); // Exclude unwanted fields
+      .select('-description -sizes -colors -category -collections -reviews -createdAt -updatedAt -__v'); // Exclude unwanted fields
 
     const [products, filteredOnlyProduct] = await Promise.all([
       productsPromise,
