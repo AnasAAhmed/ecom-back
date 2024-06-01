@@ -53,13 +53,49 @@ export const invalidateCache = ({
   }
 };
 
+// export const reduceStock = async (orderItems: OrderItemType[]) => {
+//   for (let i = 0; i < orderItems.length; i++) {
+//     const order = orderItems[i];
+//     const product = await Product.findById(order.productId);
+//     if (!product) throw new Error("Product Not Found");
+//     product.stock -= order.quantity;
+//     await product.save();
+//   }
+// };
+
 export const reduceStock = async (orderItems: OrderItemType[]) => {
   for (let i = 0; i < orderItems.length; i++) {
     const order = orderItems[i];
     const product = await Product.findById(order.productId);
     if (!product) throw new Error("Product Not Found");
+
+    // Reduce the general stock
     product.stock -= order.quantity;
+
+    // Reduce the size stock if specified
+    if (order.size) {
+      const sizeItem = product.sizes.find(size => size.size === order.size);
+      if (sizeItem) {
+        sizeItem.stock! -= order.quantity;
+        if (sizeItem.stock! < 0) throw new Error("Not enough stock for the specified size");
+      } else {
+        throw new Error(`Size ${order.size} not found for product ${order.productId}`);
+      }
+    }
+
+    // Reduce the color stock if specified
+    if (order.color) {
+      const colorItem = product.colors.find(color => color.color === order.color);
+      if (colorItem) {
+        colorItem.stock! -= order.quantity;
+        if (colorItem.stock! < 0) throw new Error("Not enough stock for the specified color");
+      } else {
+        throw new Error(`Color ${order.color} not found for product ${order.productId}`);
+      }
+    }
+
     await product.save();
+
   }
 };
 

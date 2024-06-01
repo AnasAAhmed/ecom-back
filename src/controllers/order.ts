@@ -76,6 +76,8 @@ export const newOrder = TryCatch(
     if (!shippingInfo || !orderItems || !user || !subtotal || !tax || !total)
       return next(new ErrorHandler("Please Enter All Fields", 400));
 
+    await reduceStock(orderItems);
+    
     const order = await Order.create({
       shippingInfo,
       orderItems,
@@ -87,7 +89,6 @@ export const newOrder = TryCatch(
       total,
     });
 
-    await reduceStock(orderItems);
 
     invalidateCache({
       product: true,

@@ -18,16 +18,15 @@ export interface NewProductRequestBody {
   price: number;
   cutPrice: number;
   stock: number;
-  size: string[];
-  color: string[];
-  style: string[];
+  sizes?: [{size:string,stock:number}];
+  colors?: [{color:string,stock:number}];
 }
 export interface NewReviewRequestBody {
   comment: string;
   user: string;
   productId: string;
   rating: number;
-  photos?: string[];
+  photos?: string;
 }
 
 

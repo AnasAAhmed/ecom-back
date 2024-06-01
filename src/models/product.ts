@@ -36,24 +36,22 @@ const schema = new mongoose.Schema(
       required: [true, "Please enter Collection"],
       trim: true,
     },
-    size: {
-      type: [String], // Array of strings
-      default: [],
-    },
-    color: {
-      type: [String], // Array of strings
-      default: [],
-    },
+    sizes: [{
+      size: { type: String },
+      stock: { type: Number },
+    }],
+    colors: [{
+      color: { type: String },
+      stock: { type: Number },
+    }],
     reviews: [
       {
         userId: {
           type: String,
-          ref: "User",
           required: true,
         },
         email: {
           type: String,
-          ref: "User",
           required: true,
         },
         photo: {

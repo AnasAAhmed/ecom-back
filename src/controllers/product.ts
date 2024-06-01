@@ -122,7 +122,7 @@ export const getSingleProduct = TryCatch(async (req, res, next) => {
 
 export const newProduct = TryCatch(
   async (req: Request<{}, {}, NewProductRequestBody>, res, next) => {
-    const { name, price, cutPrice, description, stock, category, collections, size, color } = req.body;
+    const { name, price, cutPrice, description, stock, category, collections, sizes, colors } = req.body;
     const photos = req.files as Express.Multer.File[];
 
     if (!photos || photos.length === 0) return next(new ErrorHandler("Please add Photos", 400));
@@ -147,8 +147,8 @@ export const newProduct = TryCatch(
       stock,
       category: category.toLowerCase(),
       collections: collections.toLowerCase(),
-      size,
-      color,
+      sizes,
+      colors,
       photos: photoPaths, // Store array of photo paths
     });
 
@@ -163,7 +163,7 @@ export const newProduct = TryCatch(
 
 export const updateProduct = TryCatch(async (req, res, next) => {
   const { id } = req.params;
-  const { name, price, cutPrice, description, stock, category, collections, size, color } = req.body;
+  const { name, price, cutPrice, description, stock, category, collections, sizes, colors } = req.body;
   const photos = req.files as Express.Multer.File[];
 
   const product = await Product.findById(id);
@@ -189,8 +189,8 @@ export const updateProduct = TryCatch(async (req, res, next) => {
   if (collections) product.collections = collections;
   if (stock) product.stock = stock;
   if (category) product.category = category.toLowerCase();
-  if (size) product.size = size;
-  if (color) product.color = color;
+  if (sizes) product.sizes = sizes;
+  if (colors) product.colors = colors;
 
   await product.save();
 
