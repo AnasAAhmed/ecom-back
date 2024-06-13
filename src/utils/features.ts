@@ -70,7 +70,13 @@ export const reduceStock = async (orderItems: OrderItemType[]) => {
     if (!product) throw new Error("Product Not Found");
 
     // Reduce the general stock
-    product.stock -= order.quantity;
+    if (product.stock >= order.quantity) {
+      product.stock -= order.quantity;
+      product.sold += order.quantity;
+    }else {
+      console.error(`Not enough stock for product: ${order.productId}`);
+      throw new Error("Not enough stock for this Product");
+    }
 
     // Reduce the size stock if specified
     if (order.size) {

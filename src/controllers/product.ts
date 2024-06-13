@@ -50,7 +50,7 @@ export const getLatestCategoryProducts = TryCatch(async (req, res, next) => {
 export const getCollectionsProducts = TryCatch(async (req, res, next) => {
   const { collection } = req.params;
 
-  const productCollection = await Product.find({ collections: collection }).sort({ createdAt: -1 });
+  const productCollection = await Product.find({ collections: collection }).sort({ createdAt: -1 }).select('-description -sizes -colors -category -collections -reviews -createdAt -updatedAt -__v');
 
   return res.status(200).json({
     success: true,
@@ -91,7 +91,7 @@ export const getAdminProducts = TryCatch(async (req, res, next) => {
   if (myCache.has("all-products"))
     products = JSON.parse(myCache.get("all-products") as string);
   else {
-    products = await Product.find({}).sort({ createdAt: -1 });
+    products = await Product.find({}).sort({ createdAt: -1 }).select('-description -sizes -colors -category -collections -reviews -createdAt -updatedAt -__v'); 
     myCache.set("all-products", JSON.stringify(products));
   }
 
@@ -100,6 +100,8 @@ export const getAdminProducts = TryCatch(async (req, res, next) => {
     products,
   });
 });
+
+
 
 export const getSingleProduct = TryCatch(async (req, res, next) => {
   let product;
@@ -170,7 +172,7 @@ export const updateProduct = TryCatch(async (req, res, next) => {
 
   if (!product) return next(new ErrorHandler("Product Not Found", 404));
 
-  if (photos&& photos.length>0) {
+  if (photos && photos.length > 0) {
     // Remove old photos
     product.photos.forEach(photo => {
       rm(photo, () => {
@@ -245,7 +247,6 @@ export const getAllProducts = TryCatch(
         $regex: search,
         $options: "i",
       };
-
     if (price)
       baseQuery.price = {
         $lte: Number(price),
@@ -321,15 +322,15 @@ export const createProductReview = TryCatch(async (req, res, next) => {
 });
 // Get All Reviews of a Product
 export const getProductReviews = TryCatch(async (req, res, next) => {
-    const id = req.query.id!;
-    const product = await Product.findById(id);
-    if (!product) {
-        return next(new ErrorHandler("Product not found", 404));
-    }
-    res.status(200).json({
-        success: true,
-        reviews: product.reviews,
-    });
+  const id = req.query.id!;
+  const product = await Product.findById(id);
+  if (!product) {
+    return next(new ErrorHandler("Product not found", 404));
+  }
+  res.status(200).json({
+    success: true,
+    reviews: product.reviews,
+  });
 });
 
 // Delete Review

@@ -77,7 +77,7 @@ export const newOrder = TryCatch(
       return next(new ErrorHandler("Please Enter All Fields", 400));
 
     await reduceStock(orderItems);
-    
+
     const order = await Order.create({
       shippingInfo,
       orderItems,
@@ -118,6 +118,9 @@ export const processOrder = TryCatch(async (req, res, next) => {
       break;
     case "Shipped":
       order.status = "Delivered";
+      break;
+    case "Delivered":
+      order.status = "Cancel";
       break;
     default:
       order.status = "Delivered";
