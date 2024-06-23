@@ -115,7 +115,7 @@ export const deleteSingleUser = TryCatch(async (req, res, next) => {
 });
 
 
-//ONLY CAN ACCES THIS
+//ONLY ADMIN CAN ACCES THIS
 export const deleteUser = TryCatch(async (req, res, next) => {
   const id = req.params.id;
   const user = await User.findById(id);

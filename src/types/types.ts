@@ -18,8 +18,13 @@ export interface NewProductRequestBody {
   price: number;
   cutPrice: number;
   stock: number;
-  sizes?: [{size:string,stock:number}];
-  colors?: [{color:string,stock:number}];
+  variants: [{
+    size: string;
+    color: string;
+    stock: number;
+  }];
+  // sizes?: [{size:string,stock:number}];
+  // colors?: [{color:string,stock:number}];
 }
 export interface NewReviewRequestBody {
   comment: string;
@@ -42,6 +47,7 @@ export type SearchRequestQuery = {
   price?: string;
   category?: string;
   sort?: string;
+  sortField?: string;
   page?: string;
 };
 export type UserSearchQuery = {
@@ -91,6 +97,7 @@ export type OrderItemType = {
   price: number;
   size?: string;
   color?: string;
+  variantId?: string;
   quantity: number;
   productId: string;
 };

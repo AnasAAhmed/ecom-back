@@ -1,4 +1,3 @@
-
 import mongoose from "mongoose";
 
 const schema = new mongoose.Schema(
@@ -33,14 +32,10 @@ const schema = new mongoose.Schema(
     },
     collections: {
       type: String,
-      required: [true, "Please enter Collection"],
-      trim: true,
+       trim: true,
     },
-    sizes: [{
+    variants: [{
       size: { type: String },
-      stock: { type: Number },
-    }],
-    colors: [{
       color: { type: String },
       stock: { type: Number },
     }],
@@ -61,7 +56,6 @@ const schema = new mongoose.Schema(
         date: {
           type: Date,
           default: Date.now,
-          // immutable: true
         },
         name: {
           type: String,
@@ -75,7 +69,6 @@ const schema = new mongoose.Schema(
           type: String,
           required: true,
         },
-
       },
     ],
     numOfReviews: {

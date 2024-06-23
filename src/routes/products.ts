@@ -9,7 +9,7 @@ import {
   getlatestProducts,
   newProduct,
   updateProduct,
-  getLatestCategoryProducts,
+  getLatestCategoryOrTopProducts,
   getCollectionsProducts,
   getAllCollections,
   deleteReview,
@@ -29,8 +29,8 @@ app.get("/all", getAllProducts);
 //To get last 10 Products  - /api/v1/product/latest
 app.get("/latest", getlatestProducts);
 
-//Not latest. it is basically get(RELETAED)CategoryProducts
-app.get("/latest/:category", getLatestCategoryProducts);
+//Not latest. it is basically get(RELETAED)CategoryProducts && getBestSellingProducts
+app.get("/category-top", getLatestCategoryOrTopProducts);
 
 app.get("/allcollections/:collection", getCollectionsProducts);
 

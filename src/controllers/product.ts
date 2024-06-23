@@ -21,7 +21,7 @@ export const getlatestProducts = TryCatch(async (req, res, next) => {
   else {
     products = await Product.find({})
       .sort({ createdAt: -1 })
-      .limit(4)
+      .limit(8)
       .select('-description -sizes -colors -category -collections -reviews -createdAt -updatedAt -__v'); // Exclude unwanted fields
     myCache.set("latest-products", JSON.stringify(products));
   }
@@ -32,18 +32,26 @@ export const getlatestProducts = TryCatch(async (req, res, next) => {
   });
 });
 
-//Not latest. it is basically get(RELETAED)CategoryProducts
-export const getLatestCategoryProducts = TryCatch(async (req, res, next) => {
-  const category = req.params.category;
+//Not latest. it is basically get(RELETAED)CategoryProducts && getBestSellingProductsS
+export const getLatestCategoryOrTopProducts = TryCatch(async (req, res, next) => {
+  const { category } = req.query;
 
-  const products = await Product.find({ category: category })
-    .sort({ createdAt: -1 })
-    .limit(4)
-    .select('-description -sizes -colors -category -collections -reviews -createdAt -updatedAt -__v'); // Exclude unwanted fields
+  let products;
+  if (!category) {
+    products = await Product.find({})
+      .sort({ sold: -1, ratings: -1 })
+      .limit(4)
+      .select('-description -sizes -colors -category -collections -reviews -createdAt -updatedAt -__v');
+  } else {
+    products = await Product.find({ category })
+      .sort({ createdAt: -1 })
+      .limit(4)
+      .select('-description -sizes -colors -category -collections -reviews -createdAt -updatedAt -__v');
+  }
 
   return res.status(200).json({
     success: true,
-    products: products
+    products,
   });
 });
 
@@ -91,7 +99,7 @@ export const getAdminProducts = TryCatch(async (req, res, next) => {
   if (myCache.has("all-products"))
     products = JSON.parse(myCache.get("all-products") as string);
   else {
-    products = await Product.find({}).sort({ createdAt: -1 }).select('-description -sizes -colors -category -collections -reviews -createdAt -updatedAt -__v'); 
+    products = await Product.find({}).sort({ createdAt: -1 }).select('-description -variants -category -collections -reviews -createdAt -updatedAt -__v');
     myCache.set("all-products", JSON.stringify(products));
   }
 
@@ -124,12 +132,12 @@ export const getSingleProduct = TryCatch(async (req, res, next) => {
 
 export const newProduct = TryCatch(
   async (req: Request<{}, {}, NewProductRequestBody>, res, next) => {
-    const { name, price, cutPrice, description, stock, category, collections, sizes, colors } = req.body;
+    const { name, price, cutPrice, description, stock, category, collections, variants } = req.body;
     const photos = req.files as Express.Multer.File[];
 
     if (!photos || photos.length === 0) return next(new ErrorHandler("Please add Photos", 400));
 
-    if (!name || !price || !stock || !category || !description || !collections) {
+    if (!name || !price || !stock || !category || !description ) {
       photos.forEach(photo => {
         rm(photo.path, () => {
           console.log("Deleted");
@@ -149,8 +157,7 @@ export const newProduct = TryCatch(
       stock,
       category: category.toLowerCase(),
       collections: collections.toLowerCase(),
-      sizes,
-      colors,
+      variants,
       photos: photoPaths, // Store array of photo paths
     });
 
@@ -165,7 +172,7 @@ export const newProduct = TryCatch(
 
 export const updateProduct = TryCatch(async (req, res, next) => {
   const { id } = req.params;
-  const { name, price, cutPrice, description, stock, category, collections, sizes, colors } = req.body;
+  const { name, price, cutPrice, description, stock, category, collections, variants } = req.body;
   const photos = req.files as Express.Multer.File[];
 
   const product = await Product.findById(id);
@@ -191,8 +198,9 @@ export const updateProduct = TryCatch(async (req, res, next) => {
   if (collections) product.collections = collections;
   if (stock) product.stock = stock;
   if (category) product.category = category.toLowerCase();
-  if (sizes) product.sizes = sizes;
-  if (colors) product.colors = colors;
+  if (variants) product.variants = variants;
+  // if (sizes) product.sizes = sizes;
+  // if (colors) product.colors = colors;
 
   await product.save();
 
@@ -234,7 +242,7 @@ export const deleteProduct = TryCatch(async (req, res, next) => {
 
 export const getAllProducts = TryCatch(
   async (req: Request<{}, {}, {}, SearchRequestQuery>, res, next) => {
-    const { search, sort, category, price } = req.query;
+    const { search, sort, category, price, sortField } = req.query;
 
     const page = Number(req.query.page) || 1;
     const limit = Number(process.env.PRODUCT_PER_PAGE) || 8;
@@ -253,11 +261,19 @@ export const getAllProducts = TryCatch(
       };
     if (category) baseQuery.category = category;
 
+    const sortOptions: { [key: string]: 1 | -1 } = {};
+    if (sort && sortField) {
+      const sortOrder = sort === "asc" ? 1 : -1;
+      sortOptions[sortField] = sortOrder;
+    } else {
+      sortOptions['createdAt'] = -1; // Default sort by createdAt descending
+    }
+
     const productsPromise = Product.find(baseQuery)
-      .sort(sort ? { price: sort === "asc" ? 1 : -1 } : { createdAt: -1 })
+      .sort(sortOptions)
       .limit(limit)
       .skip(skip)
-      .select('-description -sizes -colors -category -collections -reviews -createdAt -updatedAt -__v'); // Exclude unwanted fields
+      .select('-description -variants -category -collections -reviews -createdAt -updatedAt -__v'); // Exclude unwanted fields
 
     const [products, filteredOnlyProduct] = await Promise.all([
       productsPromise,

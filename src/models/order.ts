@@ -64,8 +64,8 @@ const schema = new mongoose.Schema(
         price: Number,
         quantity: Number,
         size: String,
-        style: String,
         color: String,
+        variantId:String,
         productId: {
           type: mongoose.Types.ObjectId,
           ref: "Product",
