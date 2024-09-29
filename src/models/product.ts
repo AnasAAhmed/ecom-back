@@ -5,6 +5,7 @@ const schema = new mongoose.Schema(
     name: {
       type: String,
       required: [true, "Please enter Name"],
+      index: true
     },
     photos: {
       type: [String],
@@ -32,7 +33,7 @@ const schema = new mongoose.Schema(
     },
     collections: {
       type: String,
-       trim: true,
+      trim: true,
     },
     variants: [{
       size: { type: String },

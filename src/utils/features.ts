@@ -53,47 +53,15 @@ export const invalidateCache = ({
   }
 };
 
-// export const reduceStock = async (orderItems: OrderItemType[]) => {
-//   for (let i = 0; i < orderItems.length; i++) {
-//     const order = orderItems[i];
-//     const product = await Product.findById(order.productId);
-//     if (!product) throw new Error("Product Not Found");
-
-//     // Reduce the general stock
-//     if (product.stock >= order.quantity) {
-//       product.stock -= order.quantity;
-//       product.sold += order.quantity;
-//     }else {
-//       console.error(`Not enough stock for product: ${order.productId}`);
-//       throw new Error("Not enough stock for this Product");
-//     }
-
-//     // Reduce the size stock if specified
-//     if (order.size) {
-//       const sizeItem = product.sizes.find(size => size.size === order.size);
-//       if (sizeItem) {
-//         sizeItem.stock! -= order.quantity;
-//         if (sizeItem.stock! < 0) throw new Error("Not enough stock for the specified size");
-//       } else {
-//         throw new Error(`Size ${order.size} not found for product ${order.productId}`);
-//       }
-//     }
-
-//     // Reduce the color stock if specified
-//     if (order.color) {
-//       const colorItem = product.colors.find(color => color.color === order.color);
-//       if (colorItem) {
-//         colorItem.stock! -= order.quantity;
-//         if (colorItem.stock! < 0) throw new Error("Not enough stock for the specified color");
-//       } else {
-//         throw new Error(`Color ${order.color} not found for product ${order.productId}`);
-//       }
-//     }
-
-//     await product.save();
-
-//   }
-// };
+export const slugify = (title: string) => {
+  return title
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/[^\w-]+/g, "");
+};
 
 export const reduceStock = async (orderItems: OrderItemType[]) => {
   for (let i = 0; i < orderItems.length; i++) {

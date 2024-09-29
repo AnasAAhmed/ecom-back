@@ -10,7 +10,7 @@ import { Product } from "../models/product.js";
 import ErrorHandler from "../utils/utility-class.js";
 import { rm } from "fs";
 import { myCache } from "../app.js";
-import { invalidateCache } from "../utils/features.js";
+import { invalidateCache, slugify } from "../utils/features.js";
 
 // Revalidate on New,Update,Delete Product & on New Order
 export const getlatestProducts = TryCatch(async (req, res, next) => {
@@ -68,7 +68,6 @@ export const getCollectionsProducts = TryCatch(async (req, res, next) => {
 
 export const getAllCollections = TryCatch(async (req, res, next) => {
 
-  // const collections = await Product.distinct("collections");
   let collections;
 
   if (myCache.has("collections"))
@@ -120,15 +119,17 @@ export const getAdminProducts = TryCatch(async (req, res, next) => {
 
 export const getSingleProduct = TryCatch(async (req, res, next) => {
   let product;
-  const id = req.params.id;
-  if (myCache.has(`product-${id}`))
-    product = JSON.parse(myCache.get(`product-${id}`) as string);
+  const slug = req.params.id;
+  const unSlug = slug.replace(/-/g, " ")
+  if (myCache.has(`product-${slug}`))
+    product = JSON.parse(myCache.get(`product-${slug}`) as string);
   else {
-    product = await Product.findById(id);
-
+    product = await Product.findOne(
+        { name: { $regex: unSlug, $options: 'i' } },
+    );
     if (!product) return next(new ErrorHandler("Product Not Found", 404));
 
-    myCache.set(`product-${id}`, JSON.stringify(product));
+    myCache.set(`product-${slug}`, JSON.stringify(product));
   }
 
   return res.status(200).json({
@@ -144,7 +145,7 @@ export const newProduct = TryCatch(
 
     if (!photos || photos.length === 0) return next(new ErrorHandler("Please add Photos", 400));
 
-    if (!name || !price || !stock || !category || !description ) {
+    if (!name || !price || !stock || !category || !description) {
       photos.forEach(photo => {
         rm(photo.path, () => {
           console.log("Deleted");
@@ -165,7 +166,7 @@ export const newProduct = TryCatch(
       category: category.toLowerCase(),
       collections: collections.toLowerCase(),
       variants,
-      photos: photoPaths, // Store array of photo paths
+      photos: photoPaths,
     });
 
     invalidateCache({ product: true, admin: true });
@@ -213,7 +214,7 @@ export const updateProduct = TryCatch(async (req, res, next) => {
 
   invalidateCache({
     product: true,
-    productId: String(product._id),
+    productId: String(slugify(product.name)),
     admin: true,
   });
 
@@ -237,7 +238,7 @@ export const deleteProduct = TryCatch(async (req, res, next) => {
 
   invalidateCache({
     product: true,
-    productId: String(product._id),
+    productId: String(slugify(product.name)),
     admin: true,
   });
 
@@ -336,7 +337,7 @@ export const createProductReview = TryCatch(async (req, res, next) => {
 
   await product.save({ validateBeforeSave: false });
 
-  myCache.del(`product-${productId}`);
+  myCache.del(`product-${slugify(product.name)}`);
   myCache.del("latest-products");
   res.status(200).json({
     success: true,
@@ -400,7 +401,7 @@ export const deleteReview = TryCatch(async (req, res, next) => {
     }
   );
 
-  myCache.del(`product-${productId}`);
+  myCache.del(`product-${slugify(product.name)}`);
   myCache.del("latest-products");
 
   res.status(200).json({
