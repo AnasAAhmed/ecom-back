@@ -2,7 +2,7 @@ import { Request } from "express";
 import { TryCatch } from "../middlewares/error.js";
 import { NewOrderRequestBody } from "../types/types.js";
 import { Order } from "../models/order.js";
-import { invalidateCache, reduceStock } from "../utils/features.js";
+import { invalidateCache, reduceStock, slugify } from "../utils/features.js";
 import ErrorHandler from "../utils/utility-class.js";
 import { myCache } from "../app.js";
 
@@ -95,7 +95,7 @@ export const newOrder = TryCatch(
       order: true,
       admin: true,
       userId: user,
-      productId: order.orderItems.map((i) => String(i.productId)),
+      productId: order.orderItems.map((i) => String(slugify(i.name!))),
     });
 
     return res.status(201).json({

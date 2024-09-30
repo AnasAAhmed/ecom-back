@@ -91,8 +91,6 @@ export const reduceStock = async (orderItems: OrderItemType[]) => {
         throw new Error("Not enough stock for this variant");
       }
     }
-
-
     await product.save();
   }
 };

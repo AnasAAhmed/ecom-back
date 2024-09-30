@@ -118,15 +118,18 @@ export const getAdminProducts = TryCatch(async (req, res, next) => {
 
 
 export const getSingleProduct = TryCatch(async (req, res, next) => {
+  const { id } = req.query;//admin id
   let product;
   const slug = req.params.id;
-  const unSlug = slug.replace(/-/g, " ")
+  const unSlug = slug.replace(/-/g, " ");
+
   if (myCache.has(`product-${slug}`))
     product = JSON.parse(myCache.get(`product-${slug}`) as string);
   else {
-    product = await Product.findOne(
-        { name: { $regex: unSlug, $options: 'i' } },
-    );
+    if (id) {
+      product = await Product.findOne({ name: unSlug }); //for admin
+    } else product = await Product.findOne({ name: { $regex: unSlug, $options: 'i' } }) //for public
+
     if (!product) return next(new ErrorHandler("Product Not Found", 404));
 
     myCache.set(`product-${slug}`, JSON.stringify(product));
@@ -207,8 +210,6 @@ export const updateProduct = TryCatch(async (req, res, next) => {
   if (stock) product.stock = stock;
   if (category) product.category = category.toLowerCase();
   if (variants) product.variants = variants;
-  // if (sizes) product.sizes = sizes;
-  // if (colors) product.colors = colors;
 
   await product.save();
 
