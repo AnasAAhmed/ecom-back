@@ -29,6 +29,7 @@ const schema = new mongoose.Schema(
       type: String,
       ref: "User",
       required: true,
+      index: true
     },
 
     subtotal: {
@@ -65,11 +66,15 @@ const schema = new mongoose.Schema(
         quantity: Number,
         size: String,
         color: String,
-        variantId:String,
+        variantId: String,
         productId: {
           type: mongoose.Types.ObjectId,
           ref: "Product",
         },
+        // status: {
+        //   type: String,
+        //   default: "Processing",
+        // },
       },
     ],
   },

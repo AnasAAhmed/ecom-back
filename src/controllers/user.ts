@@ -3,6 +3,7 @@ import { User } from "../models/user.js";
 import { NewUserRequestBody, UserBaseQuery, UserSearchQuery } from "../types/types.js";
 import { TryCatch } from "../middlewares/error.js";
 import ErrorHandler from "../utils/utility-class.js";
+import { isValidObjectId } from "mongoose";
 
 export const newUser = TryCatch(
   async (
@@ -10,7 +11,7 @@ export const newUser = TryCatch(
     res: Response,
     next: NextFunction
   ) => {
-    const { name, email, photo, gender, _id,phone, dob } = req.body;
+    const { name, email, photo, gender, _id, phone, dob } = req.body;
 
     let user = await User.findById(_id);
 
@@ -20,7 +21,7 @@ export const newUser = TryCatch(
         message: `Welcome, ${user.name}`,
       });
 
-    if (!_id || !name || !email || !photo || !gender || !dob||!phone)
+    if (!_id || !name || !email || !photo || !gender || !dob || !phone)
       return next(new ErrorHandler("Please add all fields", 400));
 
     user = await User.create({
@@ -40,28 +41,36 @@ export const newUser = TryCatch(
   }
 );
 
-export const getAllUsers = TryCatch(async(req: Request<{}, {}, {}, UserSearchQuery>, res:Response, next) => {
+export const getAllUsers = TryCatch(async (req: Request, res: Response) => {
+  const query = req.query.query || '';
+  const key = req.query.key || '';
+  const page = Number(req.query.page) - 1 || 0;
 
-  const { email,searchId } = req.query;
+  let search: { [key: string]: any } = {};
 
-  const baseQuery: UserBaseQuery = {};
+  if (query) {
+    if (key === 'email') search = { email: { $regex: query, $options: 'i' } };
+    if (key === '_id' || isValidObjectId(query)) search = { _id: query };
+    if (key === 'name') search = { name: { $regex: query, $options: 'i' } };
+    if (key === 'role') search = { role: query };
+    if (key === 'gender') search = { gender: query }
+    if (key === 'phone') search = { phone: Number(query) };
+  };
 
-  if (email)
-    baseQuery.email = {
-      $regex: email,
-      $options: "i",
-    };
 
-  if (searchId)
-    baseQuery._id = {
-      $regex: searchId,
-      $options: "i",
-    };
+  const totalUsers = await User.countDocuments();
 
-  const users = await User.find(baseQuery);
+  const users = await User.find(search)
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .skip(page * 10);
+
+  const totalPages = Math.ceil(totalUsers / 10);
 
   return res.status(200).json({
     success: true,
+    totalPages,
+    totalUsers,
     users,
   });
 });
@@ -79,12 +88,12 @@ export const getUser = TryCatch(async (req, res, next) => {
 });
 
 export const updateUser = TryCatch(async (req, res, next) => {
-  const { name, dob, phone, gender,id} = req.body;
+  const { name, dob, phone, gender, id } = req.body;
   const user = await User.findById(id);
 
   if (!user) return next(new ErrorHandler("User Not Found", 404));
 
-  
+
   if (name) user.name = name;
   if (phone) user.phone = phone;
   if (gender) user.gender = gender;
