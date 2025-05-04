@@ -9,7 +9,7 @@ import { Product } from "../models/product.js";
 import ErrorHandler from "../utils/utility-class.js";
 import { rm } from "fs";
 import { myCache } from "../app.js";
-import { invalidateCache, slugify } from "../utils/features.js";
+import { estimateDimensions, estimateWeight, invalidateCache, slugify } from "../utils/features.js";
 import { isValidObjectId } from "mongoose";
 
 export const getlatestProducts = TryCatch(async (req, res, next) => {
@@ -321,7 +321,9 @@ export const getAdminProducts = TryCatch(async (req, res) => {
 
 export const newProduct = TryCatch(
   async (req: Request<{}, {}, NewProductRequestBody>, res, next) => {
-    const { name, price, cutPrice, description, stock, category, collections, variants } = req.body;
+    const { name, price, cutPrice, description, stock, category, collections, variants, weight, dimensions } = req.body;
+    const parsedDimensions = dimensions ? JSON.parse(dimensions) : {};
+
     const photos = req.files as Express.Multer.File[];
 
     if (!photos || photos.length === 0) return next(new ErrorHandler("Please add Photos", 400));
@@ -344,6 +346,8 @@ export const newProduct = TryCatch(
       cutPrice,
       description,
       stock,
+      weight: weight || estimateWeight(name),
+      dimensions: parsedDimensions || estimateDimensions(name),
       category: category.toLowerCase(),
       collections: collections.toLowerCase(),
       variants,
@@ -361,34 +365,41 @@ export const newProduct = TryCatch(
 
 export const updateProduct = TryCatch(async (req, res, next) => {
   const { id } = req.params;
-  const { name, price, cutPrice, description, stock, category, collections, variants } = req.body;
-  const photos = req.files as Express.Multer.File[];
+  const { name, price, cutPrice, description, stock, category, collections, variants, weight, dimensions } = req.body;
+  const parsedDimensions = dimensions ? JSON.parse(dimensions) : {};
+
 
   const product = await Product.findById(id);
 
   if (!product) return next(new ErrorHandler("Product Not Found", 404));
 
-  if (photos && photos.length > 0) {
-    // Remove old photos
-    product.photos.forEach(photo => {
-      rm(photo, () => {
-        console.log("Old Photo Deleted");
-      });
-    });
+  const photos = (req.files as Express.Multer.File[]) || [];
 
-    // Update with new photos
-    product.photos = photos.map(photo => photo.path);
-  }
+if (photos.length > 0) {
+  // Remove old photos
+  product.photos.forEach(photo => {
+    rm(photo, () => {
+      console.log("Old Photo Deleted");
+    });
+  });
+
+  // Update with new photos
+  product.photos = photos.map(photo => photo.path);
+}
+
 
   product.cutPrice = cutPrice;
   product.variants = variants;
   product.collections = collections;
   if (name) product.name = name;
   if (price) product.price = price;
+  if (weight) product.weight = weight || estimateWeight(name);
+  if (dimensions) product.dimensions = parsedDimensions || estimateDimensions(name);
   if (description) product.description = description;
   if (stock) product.stock = stock;
   if (category) product.category = category.toLowerCase();
 
+  console.log(product);
   await product.save();
 
   invalidateCache({

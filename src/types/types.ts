@@ -18,6 +18,8 @@ export interface NewProductRequestBody {
   price: number;
   cutPrice: number;
   stock: number;
+  weight: number;
+  dimensions: string;
   variants: [{
     size: string;
     color: string;
@@ -77,7 +79,7 @@ export interface BaseQuery {
   $text?: {
     $search: string;
   };
-  collections?:  string;
+  collections?: string;
   searchableVariants?: {
     $regex: string;
     $options: string;
