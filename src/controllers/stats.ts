@@ -6,189 +6,187 @@ import { User } from "../models/user.js";
 import {
   calculatePercentage,
   getChartData,
+  getCollections,
   getInventories,
 } from "../utils/features.js";
 
 export const getDashboardStats = TryCatch(async (req, res, next) => {
   let stats = {};
-
   const key = "admin-stats";
 
-  if (myCache.has(key)) stats = JSON.parse(myCache.get(key) as string);
-  else {
+  if (myCache.has(key)) {
+    stats = JSON.parse(myCache.get(key) as string);
+  } else {
     const today = new Date();
     const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    sixMonthsAgo.setMonth(today.getMonth() - 5);
+    sixMonthsAgo.setDate(1);
 
-    const thisMonth = {
-      start: new Date(today.getFullYear(), today.getMonth(), 1),
-      end: today,
-    };
+    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
 
-    const lastMonth = {
-      start: new Date(today.getFullYear(), today.getMonth() - 1, 1),
-      end: new Date(today.getFullYear(), today.getMonth(), 0),
-    };
-
-    const thisMonthProductsPromise = Product.find({
-      createdAt: {
-        $gte: thisMonth.start,
-        $lte: thisMonth.end,
+    const productStatsPromise = Product.aggregate([
+      {
+        $facet: {
+          count: [{ $count: "total" }],
+          thisMonth: [
+            { $match: { createdAt: { $gte: thisMonthStart, $lte: today } } },
+            { $count: "total" },
+          ],
+          lastMonth: [
+            { $match: { createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd } } },
+            { $count: "total" },
+          ],
+          categories: [{ $group: { _id: "$category" } }],
+          collections: [{ $group: { _id: "$collections" } }],
+        },
       },
-    });
-
-    const lastMonthProductsPromise = Product.find({
-      createdAt: {
-        $gte: lastMonth.start,
-        $lte: lastMonth.end,
-      },
-    });
-
-    const thisMonthUsersPromise = User.find({
-      createdAt: {
-        $gte: thisMonth.start,
-        $lte: thisMonth.end,
-      },
-    });
-
-    const lastMonthUsersPromise = User.find({
-      createdAt: {
-        $gte: lastMonth.start,
-        $lte: lastMonth.end,
-      },
-    });
-
-    const thisMonthOrdersPromise = Order.find({
-      createdAt: {
-        $gte: thisMonth.start,
-        $lte: thisMonth.end,
-      },
-    });
-
-    const lastMonthOrdersPromise = Order.find({
-      createdAt: {
-        $gte: lastMonth.start,
-        $lte: lastMonth.end,
-      },
-    });
-
-    const lastSixMonthOrdersPromise = Order.find({
-      createdAt: {
-        $gte: sixMonthsAgo,
-        $lte: today,
-      },
-    });
-
-    const latestTransactionsPromise = Order.find({})
-      .select(["orderItems", "discount", "total", "status"])
-      .limit(4);
-
-    const [
-      thisMonthProducts,
-      thisMonthUsers,
-      thisMonthOrders,
-      lastMonthProducts,
-      lastMonthUsers,
-      lastMonthOrders,
-      productsCount,
-      usersCount,
-      allOrders,
-      lastSixMonthOrders,
-      categories,
-      femaleUsersCount,
-      latestTransaction,
-    ] = await Promise.all([
-      thisMonthProductsPromise,
-      thisMonthUsersPromise,
-      thisMonthOrdersPromise,
-      lastMonthProductsPromise,
-      lastMonthUsersPromise,
-      lastMonthOrdersPromise,
-      Product.countDocuments(),
-      User.countDocuments(),
-      Order.find({}).select("total"),
-      lastSixMonthOrdersPromise,
-      Product.distinct("category"),
-      User.countDocuments({ gender: "female" }),
-      latestTransactionsPromise,
     ]);
 
-    const thisMonthRevenue = thisMonthOrders.reduce(
-      (total, order) => total + (order.total || 0),
-      0
-    );
+    const orderStatsPromise = Order.aggregate([
+      {
+        $facet: {
+          thisMonth: [
+            { $match: { createdAt: { $gte: thisMonthStart, $lte: today } } },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$total" },
+                count: { $sum: 1 },
+              },
+            },
+          ],
+          lastMonth: [
+            { $match: { createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd } } },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$total" },
+                count: { $sum: 1 },
+              },
+            },
+          ],
+          allOrders: [
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$total" },
+                count: { $sum: 1 },
+              },
+            },
+          ],
+          lastSixMonths: [
+            { $match: { createdAt: { $gte: sixMonthsAgo, $lte: today } } },
+            {
+              $group: {
+                _id: { $month: "$createdAt" },
+                revenue: { $sum: "$total" },
+                count: { $sum: 1 },
+              },
+            },
+          ],
+          latestTransaction: [
+            { $sort: { createdAt: -1 } },
+            { $limit: 4 },
+            {
+              $project: {
+                _id: 1,
+                discount: 1,
+                total: 1,
+                orderItemsCount: { $size: "$orderItems" },
+                status: 1,
+              },
+            },
+          ],
+        },
+      },
+    ]);
 
-    const lastMonthRevenue = lastMonthOrders.reduce(
-      (total, order) => total + (order.total || 0),
-      0
-    );
+    const userStatsPromise = User.aggregate([
+      {
+        $group: {
+          _id: "$gender",
+          count: { $sum: 1 },
+        },
+      },
+    ]);
 
-    const changePercent = {
-      revenue: calculatePercentage(thisMonthRevenue, lastMonthRevenue),
-      product: calculatePercentage(
-        thisMonthProducts.length,
-        lastMonthProducts.length
-      ),
-      user: calculatePercentage(thisMonthUsers.length, lastMonthUsers.length),
-      order: calculatePercentage(
-        thisMonthOrders.length,
-        lastMonthOrders.length
-      ),
-    };
+    const [productStatsRaw, orderStatsRaw, userStatsRaw] = await Promise.all([
+      productStatsPromise,
+      orderStatsPromise,
+      userStatsPromise,
+    ]);
 
-    const revenue = allOrders.reduce(
-      (total, order) => total + (order.total || 0),
-      0
-    );
+    const productStats = productStatsRaw[0];
+    const orderStats = orderStatsRaw[0];
 
-    const count = {
-      revenue,
-      product: productsCount,
-      user: usersCount,
-      order: allOrders.length,
-    };
+    const productsCount = productStats.count[0]?.total || 0;
+    const thisMonthProductCount = productStats.thisMonth[0]?.total || 0;
+    const lastMonthProductCount = productStats.lastMonth[0]?.total || 0;
+    const categories = productStats.categories.map((c: any) => c._id);
+    const collections = productStats.collections.map((c: any) => c._id);
 
-    const orderMonthCounts = new Array(6).fill(0);
-    const orderMonthyRevenue = new Array(6).fill(0);
+    const thisMonthOrdersData = orderStats.thisMonth[0] || { totalRevenue: 0, count: 0 };
+    const lastMonthOrdersData = orderStats.lastMonth[0] || { totalRevenue: 0, count: 0 };
+    const totalOrdersData = orderStats.allOrders[0] || { totalRevenue: 0, count: 0 };
 
-    lastSixMonthOrders.forEach((order) => {
-      const creationDate = order.createdAt;
-      const monthDiff = (today.getMonth() - creationDate.getMonth() + 12) % 12;
-
-      if (monthDiff < 6) {
-        orderMonthCounts[6 - monthDiff - 1] += 1;
-        orderMonthyRevenue[6 - monthDiff - 1] += order.total;
-      }
-    });
-
-    const categoryCount = await getInventories({
-      categories,
-      productsCount,
-    });
-
-    const userRatio = {
-      male: usersCount - femaleUsersCount,
-      female: femaleUsersCount,
-    };
-
-    const modifiedLatestTransaction = latestTransaction.map((i) => ({
-      _id: i._id,
-      discount: i.discount,
-      amount: i.total,
-      quantity: i.orderItems.length,
-      status: i.status,
+    const latestTransaction = orderStats.latestTransaction.map((t: any) => ({
+      _id: t._id,
+      discount: t.discount,
+      amount: t.total,
+      quantity: t.orderItemsCount,
+      status: t.status,
     }));
 
-    stats = {
+    const lastSixMonthsMap = new Array(6).fill({ count: 0, revenue: 0 });
+    orderStats.lastSixMonths.reduce(
+      (
+        acc: { revenue: number; count: number }[],
+        item: { _id: number; revenue: number; count: number }
+      ) => {
+        const monthIdx = (today.getMonth() - item._id + 12) % 12;
+        if (monthIdx < 6) acc[5 - monthIdx] = { revenue: item.revenue, count: item.count };
+        return acc;
+      },
+      lastSixMonthsMap
+    );
+
+
+    const userStatsMap = { male: 0, female: 0 };
+    userStatsRaw.forEach(({ _id, count }) => {
+      if (_id === "male") userStatsMap.male = count;
+      else if (_id === "female") userStatsMap.female = count;
+    });
+
+    const changePercent = {
+      revenue: calculatePercentage(thisMonthOrdersData.totalRevenue, lastMonthOrdersData.totalRevenue),
+      product: calculatePercentage(thisMonthProductCount, lastMonthProductCount),
+      user: calculatePercentage(userStatsMap.female + userStatsMap.male, userStatsMap.female + userStatsMap.male), // Replace with actual month-to-month if needed
+      order: calculatePercentage(thisMonthOrdersData.count, lastMonthOrdersData.count),
+    };
+
+    const count = {
+      revenue: totalOrdersData.totalRevenue,
+      product: productsCount,
+      user: userStatsMap.female + userStatsMap.male,
+      order: totalOrdersData.count,
+    };
+
+    const categoryCount = await getInventories({ categories, productsCount });
+    const collectionsCount = await getCollections({ collections });
+
+    const stats = {
       categoryCount,
+      collectionsCount,
       changePercent,
       count,
       chart: {
-        order: orderMonthCounts,
-        revenue: orderMonthyRevenue,
+        order: lastSixMonthsMap.map((e) => e.count),
+        revenue: lastSixMonthsMap.map((e) => e.revenue),
       },
-      userRatio,
-      latestTransaction: modifiedLatestTransaction,
+      userRatio: userStatsMap,
+      latestTransaction,
     };
 
     myCache.set(key, JSON.stringify(stats));

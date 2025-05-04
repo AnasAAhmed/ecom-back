@@ -54,16 +54,65 @@ export const getLatestCategoryOrTopProducts = TryCatch(async (req, res, next) =>
   });
 });
 
-export const getCollectionsProducts = TryCatch(async (req, res, next) => {
-  const { collection } = req.params;
+export const getCollectionsProducts = TryCatch(
+  async (req, res, next) => {
+    const { sort, price, sortField, color, size } = req.query;
+    const { collection } = req.params;
 
-  const productCollection = await Product.find({ collections: collection }).sort({ createdAt: -1 }).select('-description -sizes -colors -category -collections -reviews -createdAt -updatedAt -__v');
+    const page = Number(req.query.page) || 1;
+    const limit = Number(process.env.PRODUCT_PER_PAGE) || 8;
+    const skip = (page - 1) * limit;
 
-  return res.status(200).json({
-    success: true,
-    productCollection
-  });
-});
+    const baseQuery: BaseQuery = {};
+
+    if (collection) baseQuery.collections = collection;
+
+    if (color || size) {
+      const searchTerms = [color, size].filter(Boolean).join(" ");
+      baseQuery.searchableVariants = {
+        $regex: searchTerms,
+        $options: "i",
+      };
+    }
+
+    if (price) {
+      baseQuery.price = {
+        $lte: Number(price),
+      };
+    }
+
+    const sortOptions: { [key: string]: 1 | -1 } = {};
+    if (sort && sortField) {
+      const sortOrder = sort === "asc" ? 1 : -1;
+      sortOptions[sortField as string] = sortOrder;
+    } else {
+      sortOptions.createdAt = -1; // Default sort: newest first
+    }
+
+    const totalProducts = await Product.countDocuments(baseQuery);
+    const totalPage = Math.ceil(totalProducts / limit);
+
+    if (totalProducts === 0) {
+      return res.status(200).json({
+        success: true,
+        productCollection: [],
+        totalPage: 0,
+      });
+    }
+
+    const productCollection = await Product.find(baseQuery)
+      .limit(limit)
+      .skip(skip)
+      .sort(sortOptions)
+      .select('-description -variants -category -collections -reviews -createdAt -updatedAt -__v');
+
+    return res.status(200).json({
+      success: true,
+      productCollection,
+      totalPage,
+    });
+  }
+);
 
 export const getAllCollections = TryCatch(async (req, res, next) => {
 
@@ -72,8 +121,8 @@ export const getAllCollections = TryCatch(async (req, res, next) => {
   if (myCache.has("collections"))
     collections = JSON.parse(myCache.get("collections") as string);
   else {
-    collections = await Product.distinct("collections");
-    myCache.set("categories", JSON.stringify(collections));
+    collections = await Product.distinct("collections").sort({ createdAt: 1 });
+    myCache.set("collections", JSON.stringify(collections));
   }
   return res.status(200).json({
     success: true,
@@ -99,7 +148,7 @@ export const getAllCategories = TryCatch(async (req, res, next) => {
 });
 
 export const getSingleProduct = TryCatch(async (req, res, next) => {
-  const { id } = req.query; //admin id
+  const { id } = req.query;
   let product;
   const slug = req.params.id;
   const unSlug = slug.replace(/-/g, " ");
@@ -107,9 +156,7 @@ export const getSingleProduct = TryCatch(async (req, res, next) => {
   if (myCache.has(`product-${slug}`))
     product = JSON.parse(myCache.get(`product-${slug}`) as string);
   else {
-    if (id) {
-      product = await Product.findOne({ name: unSlug }); //for admin
-    } else product = await Product.findOne({ name: { $regex: unSlug, $options: 'i' } }) //for public
+    product = await Product.findOne({ slug }); //for admin
 
     if (!product) return next(new ErrorHandler("Product Not Found", 404));
 
@@ -382,7 +429,7 @@ export const deleteProduct = TryCatch(async (req, res, next) => {
 
 export const getAllProducts = TryCatch(
   async (req: Request<{}, {}, {}, SearchRequestQuery>, res, next) => {
-    const { sort, category, price, sortField } = req.query;
+    const { sort, category, price, sortField, color, size } = req.query;
     const search = req.query.search ? decodeURIComponent(req.query.search) : null;
     const page = Number(req.query.page) || 1;
     const limit = Number(process.env.PRODUCT_PER_PAGE) || 8;
@@ -391,10 +438,17 @@ export const getAllProducts = TryCatch(
     const baseQuery: BaseQuery = {};
 
     if (search)
-      baseQuery.name = {
-        $regex: search,
+      baseQuery.$text = {
+        $search: search
+      };
+    if (color || size) {
+      const searchTerms = [color, size].filter(Boolean).join(" ");
+      baseQuery.searchableVariants = {
+        $regex: searchTerms,
         $options: "i",
       };
+    }
+
     if (price)
       baseQuery.price = {
         $lte: Number(price),
@@ -408,19 +462,22 @@ export const getAllProducts = TryCatch(
     } else {
       sortOptions['createdAt'] = -1; // Default sort by createdAt descending
     }
-
-    const productsPromise = Product.find(baseQuery)
+    const totalProducts = await Product.countDocuments(baseQuery);
+    if (totalProducts === 0) {
+      return res.status(200).json({
+        success: true,
+        products: [],
+        totalPage: 0,
+      });
+    }
+    const products = await Product.find(baseQuery)
       .sort(sortOptions)
       .limit(limit)
       .skip(skip)
       .select('-description -variants -category -collections -reviews -createdAt -updatedAt -__v'); // Exclude unwanted fields
 
-    const [products, filteredOnlyProduct] = await Promise.all([
-      productsPromise,
-      Product.find(baseQuery),
-    ]);
 
-    const totalPage = Math.ceil(filteredOnlyProduct.length / limit);
+    const totalPage = Math.ceil(totalProducts / limit);
 
     return res.status(200).json({
       success: true,

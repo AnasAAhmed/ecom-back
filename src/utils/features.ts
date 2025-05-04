@@ -62,7 +62,58 @@ export const slugify = (title: string) => {
     .replace(/\s+/g, "-")
     .replace(/[^\w-]+/g, "");
 };
+export function estimateWeight(categoryOrTitle: string): number {
+  const input = categoryOrTitle.toLowerCase();
 
+  if (input.includes("t-shirt") || input.includes("shirt")) return 0.3;
+  if (input.includes("hoodie") || input.includes("jacket")) return 0.6;
+  if (input.includes("shoes") || input.includes("sneakers")) return 1.0;
+  if (input.includes("pants") || input.includes("trousers")) return 0.5;
+  if (input.includes("accessory") || input.includes("belt") || input.includes("cap")) return 0.2;
+
+  return 0.5;
+}
+export function statusValidation(status: string): string {
+  const input = status.toLowerCase();
+
+  if (input.includes("pending")) return "pending";
+  if (input.includes("shipped")) return "shipped";
+  if (input.includes("delivered")) return "delivered";
+  if (input.includes("canceled")) return "canceled";
+
+  return 'shipped';
+}
+type Dimensions = {
+  length: number; // cm
+  width: number;
+  height: number;
+};
+
+export function estimateDimensions(categoryOrTitle: string): Dimensions {
+  const input = categoryOrTitle.toLowerCase();
+
+  if (input.includes("t-shirt") || input.includes("shirt")) {
+    return { length: 30, width: 25, height: 2 };
+  }
+
+  if (input.includes("hoodie") || input.includes("jacket")) {
+    return { length: 35, width: 30, height: 5 };
+  }
+
+  if (input.includes("shoes") || input.includes("sneakers")) {
+    return { length: 35, width: 25, height: 12 };
+  }
+
+  if (input.includes("pants") || input.includes("trousers")) {
+    return { length: 35, width: 28, height: 4 };
+  }
+
+  if (input.includes("accessory") || input.includes("cap") || input.includes("belt")) {
+    return { length: 20, width: 15, height: 3 };
+  }
+
+  return { length: 30, width: 20, height: 5 };
+}
 export const reduceStock = async (orderItems: OrderItemType[]) => {
   for (let i = 0; i < orderItems.length; i++) {
     const order = orderItems[i];
@@ -124,6 +175,27 @@ export const getInventories = async ({
   });
 
   return categoryCount;
+};
+export const getCollections = async ({
+  collections,
+}: {
+  collections: string[];
+}) => {
+  const collectionsCountPromise = collections.map((collection) =>
+    Product.countDocuments({ collections: collection })
+  );
+
+  const collectionsCount = await Promise.all(collectionsCountPromise);
+
+  const collectionCount: Record<string, number>[] = [];
+
+  collections.forEach((collection, i) => {
+    collectionCount.push({
+      [collection]: Math.round((collectionsCount[i])),
+    });
+  });
+
+  return collectionCount;
 };
 
 interface MyDocument extends Document {

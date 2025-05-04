@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import { slugify } from "../utils/features.js";
 
 const schema = new mongoose.Schema(
   {
@@ -6,7 +7,15 @@ const schema = new mongoose.Schema(
       type: String,
       required: [true, "Please enter Name"],
       unique: true,
-      index: true
+      index: true,
+    },
+    slug: {
+      type: String,
+      unique: true,
+    },
+    searchableVariants: {
+      type: String,
+      default: "",
     },
     photos: {
       type: [String],
@@ -14,7 +23,7 @@ const schema = new mongoose.Schema(
     },
     description: {
       type: String,
-      required: [true, "Please enter Description"]
+      required: [true, "Please enter Description"],
     },
     price: {
       type: Number,
@@ -36,43 +45,33 @@ const schema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    variants: [{
-      size: { type: String },
-      color: { type: String },
-      stock: { type: Number },
-    }],
-    reviews: [
+    variants: [
       {
-        userId: {
-          type: String,
-          required: true,
-        },
-        email: {
-          type: String,
-          required: true,
-        },
-        photo: {
-          type: String,
-          required: true,
-        },
-        date: {
-          type: Date,
-          default: Date.now,
-        },
-        name: {
-          type: String,
-          required: true,
-        },
-        rating: {
-          type: Number,
-          required: true,
-        },
-        comment: {
-          type: String,
-          required: true,
-        },
+        size: { type: String },
+        color: { type: String },
+        stock: { type: Number },
       },
     ],
+    reviews: [
+      {
+        userId: { type: String, required: true },
+        email: { type: String, required: true },
+        photo: { type: String, required: true },
+        date: { type: Date, default: Date.now },
+        name: { type: String, required: true },
+        rating: { type: Number, required: true },
+        comment: { type: String, required: true },
+      },
+    ],
+    weight: {
+      type: Number,
+      default: 0.3,
+    },
+    dimensions: {
+      width: { type: Number },
+      length: { type: Number },
+      height: { type: Number },
+    },
     numOfReviews: {
       type: Number,
       default: 0,
@@ -90,5 +89,23 @@ const schema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+schema.pre("save", function (next) {
+  if (this.isModified("name") || !this.slug) {
+    this.slug = slugify(this.name);
+  }
+
+  this.searchableVariants = this.variants
+    .map(v => `${v.color || ""} ${v.size || ""}`)
+    .join(" ")
+    .trim()
+    .toLowerCase();
+
+  next();
+});
+
+
+
+schema.index({ name: "text", slug: 1, searchableVariants: "text" });
 
 export const Product = mongoose.model("Product", schema);

@@ -45,7 +45,9 @@ export type ControllerType = (
 export type SearchRequestQuery = {
   search?: string;
   price?: string;
+  size?: string;
   category?: string;
+  color?: string;
   sort?: string;
   sortField?: string;
   page?: string;
@@ -72,10 +74,15 @@ export interface UserBaseQuery {
 }
 
 export interface BaseQuery {
-  name?: {
+  $text?: {
+    $search: string;
+  };
+  collections?:  string;
+  searchableVariants?: {
     $regex: string;
     $options: string;
   };
+  $or?: any;
   price?: {
     $lte: number;
   };

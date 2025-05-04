@@ -1,5 +1,5 @@
 import express from "express";
-import { connectDB } from "./utils/features.js";
+import { connectDB, estimateDimensions, estimateWeight, slugify } from "./utils/features.js";
 import { errorMiddleware } from "./middlewares/error.js";
 import NodeCache from "node-cache";
 import { config } from "dotenv";
@@ -16,6 +16,7 @@ import orderRoute from "./routes/order.js";
 import paymentRoute from "./routes/payment.js";
 import dashboardRoute from "./routes/stats.js";
 import notificationRoute from "./routes/notification.js";
+import { Product } from "./models/product.js";
 
 
 config({
