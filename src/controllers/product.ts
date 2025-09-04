@@ -71,7 +71,6 @@ export const getCollectionsProducts = TryCatch(
       const searchTerms = [color, size].filter(Boolean).join(" ");
       baseQuery.searchableVariants = {
         $regex: searchTerms,
-        $options: "i",
       };
     }
 
@@ -456,7 +455,6 @@ export const getAllProducts = TryCatch(
       const searchTerms = [color, size].filter(Boolean).join(" ");
       baseQuery.searchableVariants = {
         $regex: searchTerms,
-        $options: "i",
       };
     }
 

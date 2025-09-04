@@ -82,7 +82,6 @@ export interface BaseQuery {
   collections?: string;
   searchableVariants?: {
     $regex: string;
-    $options: string;
   };
   $or?: any;
   price?: {

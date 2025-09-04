@@ -22,24 +22,24 @@ export const getDashboardStats = TryCatch(async (req, res, next) => {
     sixMonthsAgo.setMonth(today.getMonth() - 5);
     sixMonthsAgo.setDate(1);
 
-    const thisMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-    const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-
     const productStatsPromise = Product.aggregate([
       {
         $facet: {
           count: [{ $count: "total" }],
-          thisMonth: [
-            { $match: { createdAt: { $gte: thisMonthStart, $lte: today } } },
-            { $count: "total" },
-          ],
-          lastMonth: [
-            { $match: { createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd } } },
-            { $count: "total" },
-          ],
           categories: [{ $group: { _id: "$category" } }],
           collections: [{ $group: { _id: "$collections" } }],
+          lastSixMonths: [
+            { $match: { createdAt: { $gte: sixMonthsAgo, $lte: today } } },
+            {
+              $group: {
+                _id: {
+                  year: { $year: "$createdAt" },
+                  month: { $month: "$createdAt" },
+                },
+                count: { $sum: 1 },
+              },
+            },
+          ],
         },
       },
     ]);
@@ -47,26 +47,6 @@ export const getDashboardStats = TryCatch(async (req, res, next) => {
     const orderStatsPromise = Order.aggregate([
       {
         $facet: {
-          thisMonth: [
-            { $match: { createdAt: { $gte: thisMonthStart, $lte: today } } },
-            {
-              $group: {
-                _id: null,
-                totalRevenue: { $sum: "$total" },
-                count: { $sum: 1 },
-              },
-            },
-          ],
-          lastMonth: [
-            { $match: { createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd } } },
-            {
-              $group: {
-                _id: null,
-                totalRevenue: { $sum: "$total" },
-                count: { $sum: 1 },
-              },
-            },
-          ],
           allOrders: [
             {
               $group: {
@@ -80,7 +60,10 @@ export const getDashboardStats = TryCatch(async (req, res, next) => {
             { $match: { createdAt: { $gte: sixMonthsAgo, $lte: today } } },
             {
               $group: {
-                _id: { $month: "$createdAt" },
+                _id: {
+                  year: { $year: "$createdAt" },
+                  month: { $month: "$createdAt" },
+                },
                 revenue: { $sum: "$total" },
                 count: { $sum: 1 },
               },
@@ -104,12 +87,7 @@ export const getDashboardStats = TryCatch(async (req, res, next) => {
     ]);
 
     const userStatsPromise = User.aggregate([
-      {
-        $group: {
-          _id: "$gender",
-          count: { $sum: 1 },
-        },
-      },
+      { $group: { _id: "$gender", count: { $sum: 1 } } },
     ]);
 
     const [productStatsRaw, orderStatsRaw, userStatsRaw] = await Promise.all([
@@ -122,14 +100,11 @@ export const getDashboardStats = TryCatch(async (req, res, next) => {
     const orderStats = orderStatsRaw[0];
 
     const productsCount = productStats.count[0]?.total || 0;
-    const thisMonthProductCount = productStats.thisMonth[0]?.total || 0;
-    const lastMonthProductCount = productStats.lastMonth[0]?.total || 0;
     const categories = productStats.categories.map((c: any) => c._id);
     const collections = productStats.collections.map((c: any) => c._id);
 
-    const thisMonthOrdersData = orderStats.thisMonth[0] || { totalRevenue: 0, count: 0 };
-    const lastMonthOrdersData = orderStats.lastMonth[0] || { totalRevenue: 0, count: 0 };
-    const totalOrdersData = orderStats.allOrders[0] || { totalRevenue: 0, count: 0 };
+    const totalOrdersData =
+      orderStats.allOrders[0] || { totalRevenue: 0, count: 0 };
 
     const latestTransaction = orderStats.latestTransaction.map((t: any) => ({
       _id: t._id,
@@ -139,33 +114,73 @@ export const getDashboardStats = TryCatch(async (req, res, next) => {
       status: t.status,
     }));
 
-    const lastSixMonthsMap = new Array(6).fill({ count: 0, revenue: 0 });
-    orderStats.lastSixMonths.reduce(
-      (
-        acc: { revenue: number; count: number }[],
-        item: { _id: number; revenue: number; count: number }
-      ) => {
-        const monthIdx = (today.getMonth() - item._id + 12) % 12;
-        if (monthIdx < 6) acc[5 - monthIdx] = { revenue: item.revenue, count: item.count };
-        return acc;
-      },
-      lastSixMonthsMap
-    );
-
-
     const userStatsMap = { male: 0, female: 0 };
     userStatsRaw.forEach(({ _id, count }) => {
       if (_id === "male") userStatsMap.male = count;
       else if (_id === "female") userStatsMap.female = count;
     });
 
-    const changePercent = {
-      revenue: calculatePercentage(thisMonthOrdersData.totalRevenue, lastMonthOrdersData.totalRevenue),
-      product: calculatePercentage(thisMonthProductCount, lastMonthProductCount),
-      user: calculatePercentage(userStatsMap.female + userStatsMap.male, userStatsMap.female + userStatsMap.male), // Replace with actual month-to-month if needed
-      order: calculatePercentage(thisMonthOrdersData.count, lastMonthOrdersData.count),
+    const buildSixMonths = <T extends { [key:string]: { year: number; month: number } }>(
+      raw: T[],
+      valueKeys: (keyof T)[]
+    ) => {
+      const arr = new Array(6).fill(null).map(() => {
+        const base: any = {};
+        valueKeys.forEach((k) => (base[k] = 0));
+        return base;
+      });
+
+      raw.forEach((item) => {
+        const monthIdx =
+          (today.getFullYear() - item._id.year) * 12 +
+          (today.getMonth() - (item._id.month - 1));
+
+        if (monthIdx >= 0 && monthIdx < 6) {
+          arr[5 - monthIdx] = valueKeys.reduce(
+            (acc, k) => ({ ...acc, [k]: item[k] }),
+            {}
+          );
+        }
+      });
+      return arr;
     };
 
+    const orderSixMonths = buildSixMonths(orderStats.lastSixMonths, [
+      "revenue",
+      "count",
+    ]);
+    const productSixMonths = buildSixMonths(productStats.lastSixMonths, [
+      "count",
+    ]);
+
+    const thisMonthOrdersData = orderSixMonths[5] || {
+      revenue: 0,
+      count: 0,
+    };
+    const lastMonthOrdersData = orderSixMonths[4] || {
+      revenue: 0,
+      count: 0,
+    };
+    const thisMonthProductCount = productSixMonths[5]?.count || 0;
+    const lastMonthProductCount = productSixMonths[4]?.count || 0;
+
+    const changePercent = {
+      revenue: calculatePercentage(
+        thisMonthOrdersData.revenue,
+        lastMonthOrdersData.revenue
+      ),
+      product: calculatePercentage(
+        thisMonthProductCount,
+        lastMonthProductCount
+      ),
+      user: 100, // Placeholder, add proper month-to-month user growth if needed
+      order: calculatePercentage(
+        thisMonthOrdersData.count,
+        lastMonthOrdersData.count
+      ),
+    };
+
+    // --- Counts ---
     const count = {
       revenue: totalOrdersData.totalRevenue,
       product: productsCount,
@@ -176,14 +191,14 @@ export const getDashboardStats = TryCatch(async (req, res, next) => {
     const categoryCount = await getInventories({ categories, productsCount });
     const collectionsCount = await getCollections({ collections });
 
-    const stats = {
+    stats = {
       categoryCount,
       collectionsCount,
       changePercent,
       count,
       chart: {
-        order: lastSixMonthsMap.map((e) => e.count),
-        revenue: lastSixMonthsMap.map((e) => e.revenue),
+        order: orderSixMonths.map((e) => e.count),
+        revenue: orderSixMonths.map((e) => e.revenue),
       },
       userRatio: userStatsMap,
       latestTransaction,
@@ -192,10 +207,7 @@ export const getDashboardStats = TryCatch(async (req, res, next) => {
     myCache.set(key, JSON.stringify(stats));
   }
 
-  return res.status(200).json({
-    success: true,
-    stats,
-  });
+  return res.status(200).json({ success: true, stats });
 });
 
 export const getPieCharts = TryCatch(async (req, res, next) => {
